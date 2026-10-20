@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>How a quantum computer works</title>
+<meta name="description" content="A 3D walk from the refrigerator down to a single qubit, in four parts. Scroll-driven, no narration.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Scroll-driven film. The stage (3D) and the text panel sit side by side and stay pinned
+   while the page scrolls through a tall spacer; scroll position sets the film's time. */
+:root{
+  --paper:#e4e9ee; --paper-2:#f2f5f8; --ink:#141e29; --ink-2:#3f4d5b; --rule:#c2ccd6;
+  --track:#cdd6df; --hover:#e7edf3; --sel:#dde6f3;
+  --zero:#2549b8; --one:#a85a06;
+  --display:"Big Shoulders Display","Arial Narrow",sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111922; --paper-2:#17212c; --ink:#e4eaf0; --ink-2:#a9b6c3; --rule:#2c3a49;
+  --track:#2c3947; --hover:#1d2834; --sel:#1f2d42;
+  --zero:#7d9bff; --one:#f0a344; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --paper:#111922; --paper-2:#17212c; --ink:#e4eaf0; --ink-2:#a9b6c3; --rule:#2c3a49;
+  --track:#2c3947; --hover:#1d2834; --sel:#1f2d42;
+  --zero:#7d9bff; --one:#f0a344; color-scheme:dark;}
+
+html{scrollbar-color:var(--rule) var(--paper)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+::selection{background:var(--sel);color:var(--ink)}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--zero);outline-offset:2px}
+
+/* intro */
+.intro{max-width:1180px;margin:0 auto;padding:clamp(56px,14vh,132px) max(16px,env(safe-area-inset-left,0px)) clamp(40px,8vh,80px);display:grid;gap:18px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(52px,9vw,116px);line-height:.9;margin:0;text-wrap:balance}
+.sub{margin:0;color:var(--ink-2);font-size:clamp(17px,1.5vw,21px);max-width:40ch}
+
+/* film: tall spacer, height set by script; the frame inside it sticks to the viewport */
+.film{position:relative}
+.frame{position:sticky;top:0;height:100dvh;display:grid;grid-template-columns:minmax(0,58fr) minmax(320px,42fr);overflow:hidden}
+
+.stage{position:relative;min-width:0;min-height:0;overflow:hidden;container-type:inline-size;background:var(--paper-2)}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;will-change:transform;white-space:nowrap}
+.lbl > span{display:inline-flex;align-items:center;gap:8px;transform:translate(0,-50%);font-size:clamp(11px,1.25cqw,15px);line-height:1.2;color:var(--ink)}
+.lbl.lead > span::before{content:"";width:2.2cqw;border-top:1px solid var(--ink-2)}
+.lbl b{font-family:var(--display);font-weight:800;font-size:clamp(14px,1.7cqw,22px);font-variant-numeric:tabular-nums}
+.lbl.center > span{transform:translate(-50%,-50%)}
+.lbl.ket b{font-family:var(--body);font-weight:700;font-size:clamp(13px,1.5cqw,19px)}
+.lbl.q b{font-size:clamp(11px,1.3cqw,16px);color:var(--ink-2)}
+
+.fade{position:absolute;inset:0;background:var(--paper-2);opacity:0;pointer-events:none}
+.glyph{position:absolute;left:9cqw;top:34%;display:flex;flex-direction:column;gap:.4cqw;pointer-events:none;transform-origin:left center}
+.glyph b{font-family:var(--display);font-weight:800;font-size:clamp(40px,9cqw,124px);line-height:.85;color:var(--one)}
+.glyph small{font-size:clamp(12px,1.5cqw,19px);color:var(--ink-2)}
+.hud{position:absolute;top:3.2cqw;right:3.2cqw;background:var(--paper);border-radius:3px;padding:.8cqw 1.2cqw;display:flex;flex-direction:column;gap:.3cqw;min-width:15cqw;pointer-events:none}
+.hud small{font-size:clamp(11px,1.15cqw,14px);color:var(--ink-2)}
+.bits{font-family:var(--display);font-weight:800;font-size:clamp(20px,3.4cqw,44px);letter-spacing:.06em;line-height:1;font-variant-numeric:tabular-nums}
+.b0{color:var(--zero)} .b1{color:var(--one)}
+.bits .gap{display:inline-block;width:.3em}
+.tally{display:grid;grid-template-columns:auto minmax(8cqw,1fr) 3ch;gap:.4cqw .8cqw;align-items:center;font-size:clamp(12px,1.4cqw,17px);font-variant-numeric:tabular-nums}
+.tbar{height:.8cqw;min-height:6px;background:var(--track);border-radius:2px;overflow:hidden}
+.tbar i{display:block;height:100%}
+.fail{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--ink-2)}
+
+/* text panel */
+.panel{display:flex;flex-direction:column;justify-content:space-between;gap:32px;min-height:0;padding:clamp(28px,6vh,72px) clamp(24px,4vw,64px);background:var(--paper)}
+.step{margin:auto 0;max-width:30ch}
+.step h2{font-family:var(--display);font-weight:800;font-size:clamp(40px,4.6vw,68px);line-height:.92;margin:0 0 .3em;text-wrap:balance}
+.step p{margin:0;color:var(--ink-2);font-size:clamp(17px,1.35vw,20px);line-height:1.5;max-width:36ch}
+.step.fresh{animation:rise .6s cubic-bezier(.16,1,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+
+.parts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.parts button{background:none;border:0;border-top:2px solid var(--track);padding:12px 0 0;text-align:left;color:var(--ink-2);font-weight:700;font-size:15px;line-height:1.25;cursor:pointer;min-height:44px}
+.parts button:hover{color:var(--ink)}
+.parts button[aria-current="step"]{color:var(--ink);border-top-color:var(--zero)}
+.foot{display:grid;gap:20px}
+.controls{display:flex;gap:10px;flex-wrap:wrap}
+.controls button{background:var(--paper-2);color:var(--ink);border:1px solid var(--ink);border-radius:3px;padding:.6em 1.2em;font-weight:700;font-size:15px;cursor:pointer;min-height:44px;min-width:104px}
+.controls button:hover{background:var(--hover)}
+
+@media (max-width:760px){
+  .frame{grid-template-columns:minmax(0,1fr);grid-template-rows:44dvh minmax(0,1fr)}
+  .panel{gap:20px;padding:24px 20px 28px}
+  .step h2{font-size:clamp(32px,9vw,44px)}
+  .parts{gap:6px}
+  .parts button{font-size:13px;padding-top:10px}
+  .hud{min-width:0}
+}
+@media (prefers-reduced-motion: reduce){ .step.fresh{animation:none} }
+</style>
+</head>
+<body>
+
+<header class="intro">
+  <h1>How a quantum computer works</h1>
+  <p class="sub">A 3D walk from the refrigerator down to a single qubit, in four parts.</p>
+</header>
+
+<section class="film" id="film">
+  <div class="frame" id="frame">
+    <div class="stage" id="stage">
+      <canvas id="scene" aria-hidden="true"></canvas>
+      <div class="labels" id="labels"></div>
+      <div class="hud" id="hud-bits" hidden><small>Latest shot, Q0 to Q7</small><div class="bits" id="bits"></div></div>
+      <div class="hud" id="hud-tally" hidden>
+        <small id="tally-n">Shots: 0</small>
+        <div class="tally">
+          <span class="b0">0</span><span class="tbar"><i id="t0bar" style="background:var(--zero);width:0"></i></span><span id="t0">0</span>
+          <span class="b1">1</span><span class="tbar"><i id="t1bar" style="background:var(--one);width:0"></i></span><span id="t1">0</span>
+        </div>
+      </div>
+      <div class="glyph" id="glyph" hidden><b id="glyph-b"></b><small id="glyph-s"></small></div>
+      <div class="fade" id="fade"></div>
+    </div>
+
+    <div class="panel">
+      <div class="step" id="step" aria-live="polite">
+        <h2 id="step-head"></h2>
+        <p id="step-body"></p>
+      </div>
+      <div class="foot">
+        <div class="controls">
+          <button type="button" id="play">Play</button>
+          <button type="button" id="top">Top</button>
+        </div>
+        <nav class="parts" aria-label="Parts of the film">
+        <button type="button">The machine</button>
+        <button type="button">The chip</button>
+        <button type="button">One qubit</button>
+        <button type="button">Recap</button>
+        </nav>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+const $ = s => document.querySelector(s);
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const film = $('#film'), frameEl = $('#frame'), stage = $('#stage'), canvas = $('#scene');
+
+if (!window.THREE) {
+  const f = document.createElement('p'); f.className = 'sub';
+  f.style.padding = '0 16px';
+  f.textContent = 'The 3D film could not load. Check your connection and reload the page.';
+  film.replaceWith(f); return;
+}
+
+/* ================= script ================= */
+// scroll distance per second of film time
+const PX_PER_SEC = 90;
+const CHAPTERS = ['The machine','The chip','One qubit','Recap'];
+const s2 = Math.SQRT1_2;
+const SCENES = [
+  {ch:0, g:'machine', cut:true, cam:{tg:[0,1.9,0], yaw:-14, pitch:14, h:11.6}, drift:20, labels:'all', sig:'both', he:true, dur:5,
+   head:'A cold, quiet machine', body:'Most of a quantum computer is a refrigerator, built to keep one small chip colder than deep space.'},
+  {ch:0, g:'machine', cut:true, cam:{tg:[0,1.9,0], yaw:20, pitch:12, h:11.6}, drift:30, labels:'all', assemble:true, dur:9,
+   head:'Built from the cold up', body:'Plates drop into place from the top, then the wiring grows down to meet them.'},
+  {ch:0, g:'machine', cam:{tg:[0,6.3,0], yaw:50, pitch:26, h:3.4}, drift:14, hl:['s300','coax'], labels:['s300'], sig:'in', dur:7,
+   head:'Signals go in warm', body:'Microwave pulses enter at room temperature through dozens of coaxial cables.'},
+  {ch:0, g:'machine', cam:{tg:[0.5,4.3,0], yaw:80, pitch:12, h:5.0}, drift:14, hl:['ptc','s50','s4','hemt'], labels:['s50','s4'], sig:'out', dur:7,
+   head:'Cooling in stages', body:'A pulse-tube cooler chills the next plates to 50 kelvin, then 4 kelvin.'},
+  {ch:0, g:'machine', cam:{tg:[0,1.1,0], yaw:112, pitch:8, h:3.8}, drift:14, hl:['still','hx'], labels:['still','cold'], he:true, dur:7,
+   head:'Helium does the last step', body:'Helium-3 and helium-4 mix below one kelvin and take heat away.'},
+  {ch:0, g:'machine', cam:{tg:[0,-0.5,0], yaw:142, pitch:12, h:3.0}, drift:14, hl:['mxc'], labels:['mxc'], he:true, dur:7,
+   head:'Ten millikelvin', body:'In the mixing chamber, helium-3 dissolves into helium-4 and absorbs heat.'},
+  {ch:0, g:'machine', cam:{tg:[0,2.4,0], yaw:172, pitch:6, h:8.8}, drift:20, hl:['coax','atten'], labels:['s4','cold','mxc'], sig:'both', dur:7,
+   head:'Attenuators strip the noise', body:'Each cable cools and filters the signal, so only clean pulses reach the qubits.'},
+  {ch:0, g:'machine', cam:{tg:[0,-2.45,0], yaw:352, pitch:6, h:2.8}, drift:8, zoom:0.6, hl:['qpu'], shield:true, dur:7,
+   head:'The processor', body:'Inside magnetic and infrared shields, the chip sits at the very bottom.'},
+
+  {ch:1, g:'chip', cut:true, cam:{tg:[-2.7,0,-1.0], yaw:18, pitch:52, h:2.7}, drift:14, step:0, dur:7,
+   head:'Eight qubits', body:'Each cross is a qubit. Its two lowest energy levels are read as 0 and 1.'},
+  {ch:1, g:'chip', cam:{tg:[0,0,0.2], yaw:0, pitch:56, h:6.4}, drift:10, step:1, dur:6,
+   head:'Flipping a qubit', body:'A microwave pulse of the right length flips a qubit from 0 to 1 in about 30 nanoseconds.'},
+  {ch:1, g:'chip', cam:{tg:[0,0,0], yaw:16, pitch:40, h:5.8}, drift:12, step:2, dur:7,
+   head:'Superposition', body:'Stop the pulse halfway and the qubit holds a blend of 0 and 1.'},
+  {ch:1, g:'chip', cam:{tg:[-0.9,0,0], yaw:-12, pitch:46, h:5.0}, drift:14, step:3, dur:7,
+   head:'Entanglement', body:'Couplers link neighbouring qubits, so their results are tied together.'},
+  {ch:1, g:'chip', cam:{tg:[0,0,-0.4], yaw:0, pitch:52, h:6.6}, drift:8, step:4, dur:12,
+   head:'Reading the answer', body:'Each qubit shifts its own resonator. A probe tone turns that shift into a 0 or a 1.'},
+
+  {ch:2, g:'bloch', cut:true, cam:{tg:[0,0,0], yaw:32, pitch:18, h:3.3}, drift:24, ops:[], dur:7,
+   head:'One qubit as an arrow', body:'A qubit’s state is an arrow on a sphere. Straight up is 0, straight down is 1.'},
+  {ch:2, g:'bloch', cam:{tg:[0,0,0], yaw:56, pitch:20, h:3.2}, drift:16, ops:[{at:2.4, kind:'rot', axis:[s2,0,s2], ang:Math.PI, dur:1.6, name:'H'}], dur:7,
+   head:'Hadamard gate', body:'The arrow tips down to the equator, an even mix: 0 and 1 are equally likely.'},
+  {ch:2, g:'bloch', cam:{tg:[0,0,0], yaw:70, pitch:42, h:3.2}, drift:12,
+   ops:[{at:1.6, kind:'rot', axis:[0,0,1], ang:Math.PI/2, dur:1.3, name:'S'},{at:4.2, kind:'rot', axis:[0,0,1], ang:Math.PI/2, dur:1.3, name:'S'},{at:6.8, kind:'rot', axis:[0,0,1], ang:Math.PI/4, dur:1.0, name:'T'}], dur:9,
+   head:'Phase gates', body:'They turn the arrow around the equator. The odds stay even, but the phase changes.'},
+  {ch:2, g:'bloch', cam:{tg:[0,0,0], yaw:40, pitch:20, h:3.3}, drift:10, shots:true, dur:12,
+   head:'Measurement', body:'Measuring snaps the arrow to a pole. Repeated runs reveal the probabilities.'},
+
+  {ch:3, g:'machine', cut:true, cam:{tg:[0,1.9,0], yaw:200, pitch:10, h:11.6}, drift:28, labels:'all', sig:'both', he:true, sweep:true, dur:7,
+   head:'Put together', body:'Cold hardware, precise pulses, entanglement and repeated measurement.'},
+];
+// scene start times on the film clock
+let TOTAL = 0;
+SCENES.forEach(s => {
+  s.start = TOTAL; TOTAL += s.dur;
+  if (reduce) { s.drift = 0; s.zoom = 1; }
+});
+film.style.height = `calc(${TOTAL * PX_PER_SEC}px + 100dvh)`;
+const fmt = t => { t = Math.max(0, Math.floor(t)); return Math.floor(t/60) + ':' + String(t%60).padStart(2,'0'); };
+const span = () => Math.max(1, film.offsetHeight - frameEl.offsetHeight);
+const sceneAt = t => { for (let i = SCENES.length - 1; i >= 0; i--) if (t >= SCENES[i].start) return i; return 0; };
+
+/* ================= panel ================= */
+const stepEl = $('#step'), headEl = $('#step-head'), bodyEl = $('#step-body');
+const partBtns = [...document.querySelectorAll('.parts button')];
+let lastScene = -1, lastChapter = -1;
+function setStep(i){
+  const s = SCENES[i];
+  headEl.textContent = s.head; bodyEl.textContent = s.body;
+  if (!reduce) { stepEl.classList.remove('fresh'); void stepEl.offsetWidth; stepEl.classList.add('fresh'); }
+}
+partBtns.forEach((b, ci) => b.onclick = () => {
+  pause();
+  const s = SCENES.find(x => x.ch === ci);
+  const top = window.scrollY + film.getBoundingClientRect().top + s.start / TOTAL * span();
+  window.scrollTo({top, behavior: reduce ? 'auto' : 'smooth'});
+});
+
+/* ================= three.js setup ================= */
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(36, 16/9, 0.1, 200);
+const col = h => new THREE.Color(h).convertSRGBToLinear();
+const hash = n => { const x = Math.sin(n*12.9898 + 78.233)*43758.5453; return x - Math.floor(x); };
+const backOut = k => { const c = 1.70158; return 1 + (c + 1)*Math.pow(k - 1, 3) + c*Math.pow(k - 1, 2); };
+function syncBg(){
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--paper-2').trim() || '#f2f5f8';
+  scene.background = new THREE.Color(v);
+}
+syncBg();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncBg);
+new MutationObserver(syncBg).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+(function(){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0,0,0,256);
+  grd.addColorStop(0,'#ffffff'); grd.addColorStop(.42,'#cdd6df'); grd.addColorStop(.55,'#6c7886'); grd.addColorStop(1,'#20262e');
+  g.fillStyle = grd; g.fillRect(0,0,512,256);
+  g.fillStyle = '#ffffff'; g.fillRect(40,36,80,80); g.fillRect(290,24,140,34); g.fillRect(452,60,36,110);
+  const tex = new THREE.CanvasTexture(c); tex.mapping = THREE.EquirectangularReflectionMapping; tex.encoding = THREE.sRGBEncoding;
+  const pm = new THREE.PMREMGenerator(renderer);
+  scene.environment = pm.fromEquirectangular(tex).texture; tex.dispose(); pm.dispose();
+})();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4552, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(6,10,8); scene.add(key);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, {left:-9, right:9, top:9, bottom:-9, near:1, far:40});
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.03;
+const rim = new THREE.DirectionalLight(0xbfd2ff, 0.7); rim.position.set(-8,4,-6); scene.add(rim);
+
+const MAT = {
+  gold:   () => new THREE.MeshStandardMaterial({color:col(0xd9a441), metalness:1, roughness:.27}),
+  copper: () => new THREE.MeshStandardMaterial({color:col(0xc4874a), metalness:1, roughness:.36}),
+  steel:  () => new THREE.MeshStandardMaterial({color:col(0xc6cdd5), metalness:1, roughness:.22}),
+  coax:   () => new THREE.MeshStandardMaterial({color:col(0xb4bec9), metalness:.9, roughness:.3}),
+  dark:   () => new THREE.MeshStandardMaterial({color:col(0x2c3949), metalness:.5, roughness:.42}),
+  blue:   () => new THREE.MeshStandardMaterial({color:col(0x3d5fb8), metalness:.4, roughness:.38}),
+  alu:    () => new THREE.MeshStandardMaterial({color:col(0xd2d9e1), metalness:.95, roughness:.2}),
+};
+const mesh = (geo, mat, x=0, y=0, z=0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); return m; };
+const cyl = (r, h, mat, x, y, z, seg=32) => mesh(new THREE.CylinderGeometry(r, r, h, seg), mat, x, y, z);
+const parts = {};
+function reg(id, obj){
+  const p = parts[id] || (parts[id] = {objs:[], meshes:[]});
+  p.objs.push(obj);
+  obj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); p.meshes.push(o); } });
+}
+
+/* ================= machine ================= */
+const STAGES = [
+  {id:'s300', name:'Room-temperature plate', label:'300 K', y:6.0, r:2.3, h:0.22, mat:'steel'},
+  {id:'s50',  name:'50 K stage',            label:'50 K',  y:4.4, r:2.1, h:0.12, mat:'gold'},
+  {id:'s4',   name:'4 K stage',             label:'4 K',   y:2.9, r:1.9, h:0.12, mat:'gold'},
+  {id:'still',name:'Still',                 label:'800 mK',y:1.6, r:1.65,h:0.12, mat:'gold'},
+  {id:'cold', name:'Cold plate',            label:'100 mK',y:0.5, r:1.45,h:0.12, mat:'gold'},
+  {id:'mxc',  name:'Mixing chamber',        label:'10 mK', y:-0.6,r:1.3, h:0.12, mat:'gold'},
+];
+const machine = new THREE.Group(); scene.add(machine);
+STAGES.forEach((s, i) => {
+  const g = new THREE.Group();
+  g.add(cyl(s.r, s.h, MAT[s.mat](), 0, s.y, 0, 72));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(s.r, 0.03, 8, 72), MAT[s.mat]());
+  ring.rotation.x = Math.PI/2; ring.position.y = s.y + s.h/2; g.add(ring);
+  if (i > 0) {
+    const up = STAGES[i-1], len = up.y - s.y, rr = s.r * 0.88;
+    for (let k = 0; k < 6; k++) { const a = k/6*Math.PI*2 + Math.PI/6; g.add(cyl(0.035, len, MAT.copper(), Math.cos(a)*rr, s.y + len/2, Math.sin(a)*rr, 10)); }
+  }
+  machine.add(g); reg(s.id, g); s.group = g;
+});
+let hxCurve, hxMesh, ptcG, ptcCap, coaxG, attG, hemtG, isoG;
+const coaxLines = [], qpuDots = [];
+const stillG = new THREE.Group();
+stillG.add(cyl(0.2, 4.4, MAT.steel(), 0, 4.0, 0));
+stillG.add(cyl(0.38, 0.42, MAT.copper(), 0, 1.87, 0));
+STAGES[3].group.add(stillG); reg('still', stillG);
+const mxcPot = cyl(0.34, 0.4, MAT.copper(), 0, -0.34, 0); STAGES[5].group.add(mxcPot); reg('mxc', mxcPot);
+(function(){
+  const pts = []; const turns = 7, top = 1.55, bot = -0.28;
+  for (let i = 0; i <= 280; i++) { const t = i/280, a = t*turns*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*0.3, top + (bot-top)*t, Math.sin(a)*0.3)); }
+  hxCurve = new THREE.CatmullRomCurve3(pts);
+  hxMesh = new THREE.Mesh(new THREE.TubeGeometry(hxCurve, 400, 0.045, 8), MAT.copper());
+  machine.add(hxMesh); reg('hx', hxMesh);
+})();
+(function(){
+  const g = ptcG = new THREE.Group(), x = 1.5;
+  g.add(cyl(0.42, 0.95, MAT.steel(), x, 6.59, 0));
+  g.add(ptcCap = cyl(0.3, 0.3, MAT.dark(), x, 7.21, 0));
+  g.add(cyl(0.2, 1.6, MAT.steel(), x, 5.2, 0, 20));
+  g.add(cyl(0.12, 1.5, MAT.steel(), x, 3.65, 0, 20));
+  machine.add(g); reg('ptc', g);
+})();
+(function(){
+  coaxG = new THREE.Group(); attG = new THREE.Group(); hemtG = new THREE.Group(); isoG = new THREE.Group();
+  const N = 8, r0 = 0.95;
+  for (let k = 0; k < N; k++) {
+    const a = k/N*Math.PI*2 + Math.PI/8, dx = Math.cos(a), dz = Math.sin(a);
+    const P = (r, y, tw=0) => new THREE.Vector3(Math.cos(a+tw)*r, y, Math.sin(a+tw)*r);
+    const pts = [P(r0, 6.75)];
+    STAGES.forEach((s, i) => {
+      pts.push(P(r0, s.y));
+      const nx = STAGES[i+1];
+      if (nx) { const gap = s.y - nx.y; pts.push(P(r0 + 0.2, s.y - gap*0.33, 0.07)); pts.push(P(r0 - 0.06, s.y - gap*0.66, -0.05)); }
+    });
+    const rowX = dx*0.36 + dz*0.04;
+    pts.push(P(r0*0.75, -1.15)); pts.push(new THREE.Vector3(rowX, -1.75, 0)); pts.push(new THREE.Vector3(rowX, -2.04, 0));
+    const curve = new THREE.CatmullRomCurve3(pts), tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 260, 0.028, 8), MAT.coax());
+    coaxG.add(tube); coaxLines.push({curve, input:k < 6});
+    coaxG.add(cyl(0.06, 0.18, MAT.gold(), dx*r0, 6.8, dz*r0, 12));
+    const below = s => s.y - s.h/2 - 0.11;
+    if (k < 6) {
+      ['s4','cold','mxc'].forEach(id => { const s = STAGES.find(q => q.id === id); attG.add(cyl(0.06, 0.17, MAT.steel(), dx*r0, below(s), dz*r0, 14)); });
+    } else {
+      const h = mesh(new THREE.BoxGeometry(0.34,0.2,0.24), MAT.dark(), dx*(r0+0.08), below(STAGES[2]) - 0.02, dz*(r0+0.08)); h.lookAt(0, h.position.y, 0); hemtG.add(h);
+      const s = mesh(new THREE.BoxGeometry(0.28,0.18,0.2), MAT.blue(), dx*(r0+0.06), below(STAGES[5]) - 0.02, dz*(r0+0.06)); s.lookAt(0, s.position.y, 0); isoG.add(s);
+    }
+  }
+  machine.add(coaxG, attG, hemtG, isoG);
+  reg('coax', coaxG); reg('atten', attG); reg('hemt', hemtG); reg('iso', isoG);
+})();
+const qpuG = new THREE.Group();
+qpuG.add(cyl(0.1, 1.45, MAT.copper(), 0, -1.38, -0.18, 16));
+qpuG.add(mesh(new THREE.BoxGeometry(1.0, 0.9, 0.2), MAT.gold(), 0, -2.5, 0));
+qpuG.add(mesh(new THREE.BoxGeometry(0.52, 0.52, 0.03), new THREE.MeshStandardMaterial({color:col(0x1d2a3a), metalness:.3, roughness:.35}), 0, -2.5, 0.11));
+for (let i = 0; i < 8; i++) {
+  const m = mesh(new THREE.BoxGeometry(0.07,0.07,0.02), new THREE.MeshStandardMaterial({color:col(0x2549b8), emissive:col(0x3b68ff), emissiveIntensity:.6}), -0.18 + (i%4)*0.12, -2.44 - Math.floor(i/4)*0.12, 0.13);
+  m.userData.glow = true; qpuG.add(m); qpuDots.push(m);
+}
+machine.add(qpuG); reg('qpu', qpuG);
+const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2.35, 48, 1, false),
+  new THREE.MeshStandardMaterial({color:col(0x7d8c9c), metalness:.4, roughness:.35, transparent:true, opacity:.2, depthWrite:false, side:THREE.DoubleSide}));
+shield.position.y = -1.95; machine.add(shield);
+
+/* --- machine animation layers: signals, helium, pulse tube, mist, assembly --- */
+const glowMat = hex => new THREE.MeshBasicMaterial({color:col(hex), transparent:true, opacity:1, toneMapped:false, depthWrite:false});
+const sigs = [];
+coaxLines.forEach((L, k) => {
+  for (let j = 0; j < 3; j++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), glowMat(L.input ? 0xffa53a : 0x7fb4ff));
+    machine.add(m); sigs.push({m, curve:L.curve, input:L.input, off:j/3 + k*0.137});
+  }
+});
+const heDots = [];
+for (let j = 0; j < 16; j++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), glowMat(0xa8e1ff)); machine.add(m); heDots.push(m); }
+const ptcRings = [0,1,2].map(() => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.022, 8, 40), glowMat(0x9fd7ff)); r.rotation.x = Math.PI/2; ptcG.add(r); return r; });
+const MIST = 360, mistPos = new Float32Array(MIST*3), mistBase = [];
+for (let i = 0; i < MIST; i++) { const a = hash(i*3.1)*Math.PI*2, r = Math.sqrt(hash(i*7.7))*3.6; mistBase.push([Math.cos(a)*r, hash(i*1.3)*11 - 3.5, Math.sin(a)*r, 0.08 + hash(i*5.1)*0.12]); }
+const mistGeo = new THREE.BufferGeometry(); mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPos, 3));
+const mist = new THREE.Points(mistGeo, new THREE.PointsMaterial({color:col(0xa9c4dd), size:0.04, transparent:true, opacity:0.45, depthWrite:false}));
+machine.add(mist);
+const growTube = (m, k) => { const n = m.geometry.index.count; m.geometry.setDrawRange(0, Math.floor(n*k/6)*6); };
+function assemble(lt){
+  // the fridge builds itself: plates drop in top first, then wiring grows down, then the processor rises
+  const E = (a, b) => easeIO(clamp01((lt - a)/(b - a)));
+  STAGES.forEach((s, i) => { const k = E(0.2 + i*0.3, 1.6 + i*0.3); s.group.position.y = (1 - k)*8; s.group.visible = k > 0.001; });
+  ptcG.position.y = (1 - E(1.0, 2.6))*6; ptcG.visible = lt > 1.0;
+  const kc = E(2.9, 5.4);
+  coaxG.children.forEach(m => { if (m.geometry.type === 'TubeGeometry') growTube(m, kc); else m.visible = kc > 0; });
+  const kp = E(4.6, 5.6);
+  [attG, hemtG, isoG].forEach(g => g.children.forEach(m => m.scale.setScalar(Math.max(0.001, kp))));
+  growTube(hxMesh, E(3.2, 5.0));
+  const kq = E(5.2, 6.4);
+  qpuG.position.y = -(1 - kq)*3; qpuG.visible = shield.visible = kq > 0.001;
+  return kq;
+}
+function machineFX(sc, lt, T){
+  const built = assemble(sc.assemble ? lt : 99), fadeIn = clamp01(lt/1.0);
+  // microwave pulses: shrink at each attenuator going down, grow at each amplifier coming up
+  sigs.forEach(p => {
+    const show = !!sc.sig && (sc.sig === 'both' || (sc.sig === 'in') === p.input);
+    p.m.visible = show; if (!show) return;
+    let u = (T*0.09 + p.off) % 1; if (!p.input) u = 1 - u;
+    const pos = p.curve.getPointAt(u); p.m.position.copy(pos);
+    const y = pos.y, dn = h => smooth(h + 0.12, h - 0.12, y), upf = h => smooth(h - 0.12, h + 0.12, y);
+    p.m.scale.setScalar(p.input ? 1 - 0.3*dn(2.9) - 0.2*dn(0.5) - 0.18*dn(-0.6) : 0.35 + 0.28*upf(-0.6) + 0.37*upf(2.9));
+    p.m.material.opacity = fadeIn*Math.min(1, Math.min(u, 1 - u)/0.04);
+  });
+  // helium-3 flowing down the heat exchanger
+  heDots.forEach((m, j) => {
+    m.visible = !!sc.he; if (!sc.he) return;
+    const u = (T*0.06 + j/heDots.length) % 1;
+    m.position.copy(hxCurve.getPointAt(u)); m.material.opacity = fadeIn*Math.min(1, Math.min(u, 1 - u)/0.05);
+  });
+  // pulse tube: the motor head pumps, pressure waves carry heat up the column
+  ptcCap.position.y = 7.21 + 0.03*Math.sin(T*7);
+  const ptcOn = (sc.hl || []).includes('ptc');
+  ptcRings.forEach((r, j) => {
+    r.visible = ptcOn; const ph = (T*0.8 + j/3) % 1;
+    r.position.set(1.5, 2.95 + ph*3.1, 0); r.scale.setScalar(r.position.y < 4.4 ? 0.62 : 1);
+    r.material.opacity = fadeIn*Math.sin(Math.PI*ph)*0.9;
+  });
+  // shield slides down to reveal the processor
+  const kl = sc.shield ? easeIO(clamp01((lt - 1.2)/2.6)) : 0;
+  shield.position.y = -1.95 - (1 - built)*3 - kl*3.4;
+  shield.material.opacity = 0.2*(1 - kl);
+  qpuDots.forEach((m, j) => m.material.emissiveIntensity = 0.45 + 0.35*Math.sin(T*3 + j*0.9));
+  // cold mist drifting down
+  for (let i = 0; i < MIST; i++) {
+    const b = mistBase[i]; let y = b[1] - T*b[3]; y = ((y + 3.5) % 11 + 11) % 11 - 3.5;
+    mistPos[i*3] = b[0] + 0.15*Math.sin(T*0.3 + i); mistPos[i*3+1] = y; mistPos[i*3+2] = b[2];
+  }
+  mistGeo.attributes.position.needsUpdate = true;
+}
+
+/* ================= chip ================= */
+const chip = new THREE.Group(); scene.add(chip);
+const QX = [-2.7,-0.9,0.9,2.7], QZ = [-1.0, 1.0];
+const qubits = [];
+const C0 = col(0x2f5bd3), C1 = col(0xe08a1e), CW = col(0xffffff);
+const basic = (c, o=0) => new THREE.MeshBasicMaterial({color:c.clone(), transparent:true, opacity:o, toneMapped:false, depthWrite:false});
+chip.add(mesh(new THREE.BoxGeometry(8.4, 0.28, 6.4), new THREE.MeshStandardMaterial({color:col(0x1c2a3c), metalness:.15, roughness:.5}), 0, -0.14, 0));
+chip.add(mesh(new THREE.BoxGeometry(8.4, 0.02, 0.18), MAT.alu(), 0, 0.01, -3.11));
+chip.add(mesh(new THREE.BoxGeometry(8.4, 0.02, 0.18), MAT.alu(), 0, 0.01, 3.11));
+const feeds = [];
+[-2.5, 2.5].forEach(z => {
+  chip.add(mesh(new THREE.BoxGeometry(7.8, 0.03, 0.09), MAT.alu(), 0, 0.015, z));
+  const glow = mesh(new THREE.BoxGeometry(7.8, 0.05, 0.2), basic(CW)); glow.position.set(0, 0.03, z); chip.add(glow);
+  feeds.push({z, glow, dots:[0,1,2].map(() => { const d = mesh(new THREE.SphereGeometry(0.07, 12, 10), basic(C0, 1)); chip.add(d); return d; })});
+});
+QZ.forEach((qz, row) => QX.forEach((qx, ci) => {
+  const i = row*4 + ci, out = row === 0 ? -1 : 1;
+  const g = new THREE.Group(); g.position.set(qx, 0, qz);
+  g.add(mesh(new THREE.BoxGeometry(1.0, 0.05, 0.16), MAT.alu(), 0, 0.025, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.16, 0.05, 1.0), MAT.alu(), 0, 0.025, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.1, 0.07, 0.1), MAT.copper(), 0, 0.035, -out*0.56));
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 56), basic(C0, .2)); halo.rotation.x = -Math.PI/2; halo.position.y = 0.012; g.add(halo);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.62, 56), basic(C0, .08)); disc.rotation.x = -Math.PI/2; disc.position.y = 0.008; g.add(disc);
+  chip.add(g);
+  const rp = [], x0 = qx - 0.25, zA = qz + out*0.62, zB = out*2.38;
+  rp.push(new THREE.Vector3(x0, 0.02, zA));
+  for (let t = 1; t <= 6; t++) rp.push(new THREE.Vector3(x0 + (t%2 ? -0.28 : 0.28), 0.02, zA + (zB - zA)*(t/7)));
+  rp.push(new THREE.Vector3(x0, 0.02, zB));
+  const curve = new THREE.CatmullRomCurve3(rp, false, 'catmullrom', 0.1);
+  chip.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.022, 6), MAT.alu()));
+  const resGlow = new THREE.Mesh(new THREE.TubeGeometry(curve, 120, 0.06, 6), basic(C0)); chip.add(resGlow);
+  const lx = qx + 0.48, zEdge = out*3.0, zEnd = qz + out*0.3;
+  chip.add(mesh(new THREE.BoxGeometry(0.035, 0.03, Math.abs(zEdge - zEnd)), MAT.alu(), lx, 0.015, (zEdge + zEnd)/2));
+  chip.add(mesh(new THREE.BoxGeometry(0.24, 0.035, 0.16), MAT.alu(), lx, 0.018, zEdge));
+  chip.add(mesh(new THREE.BoxGeometry(0.12, 0.08, 0.16), MAT.alu(), lx, 0.04, out*2.5));
+  const pulse = mesh(new THREE.SphereGeometry(0.085, 14, 10), basic(C1, 0)); chip.add(pulse);
+  const trail = [0,1].map(() => { const m = mesh(new THREE.SphereGeometry(0.085, 12, 8), basic(C1, 0)); chip.add(m); return m; });
+  const ripple = new THREE.Mesh(new THREE.RingGeometry(0.8, 0.88, 56), basic(C1, 0)); ripple.rotation.x = -Math.PI/2; ripple.position.set(qx, 0.02, qz); chip.add(ripple);
+  qubits.push({i, qx, qz, g, halo, disc, resGlow, pulse, trail, ripple, from:new THREE.Vector3(lx, 0.07, zEdge), to:new THREE.Vector3(lx, 0.07, zEnd)});
+}));
+const couplers = {};
+function addCoupler(a, b, geo, x, z){
+  chip.add(mesh(geo, MAT.alu(), x, 0.02, z));
+  const gl = new THREE.Mesh(geo.clone().scale(1.1, 2.2, 2.4), basic(C1)); gl.position.set(x, 0.03, z); chip.add(gl);
+  couplers[a+'-'+b] = gl;
+}
+for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) addCoupler(r*4+c, r*4+c+1, new THREE.BoxGeometry(0.76, 0.04, 0.08), (QX[c]+QX[c+1])/2, QZ[r]);
+for (let c = 0; c < 4; c++) addCoupler(c, c+4, new THREE.BoxGeometry(0.08, 0.04, 0.96), QX[c], 0);
+const PAIRS = [[0,1],[2,3],[4,5],[6,7]];
+// entanglement arcs that rise between each pair
+const arcs = PAIRS.map(([a, b]) => {
+  const A = new THREE.Vector3(QX[a%4], 0.06, QZ[Math.floor(a/4)]), B = new THREE.Vector3(QX[b%4], 0.06, QZ[Math.floor(b/4)]);
+  const curve = new THREE.QuadraticBezierCurve3(A, A.clone().lerp(B, 0.5).setY(1.05), B);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.028, 8), basic(C1)); chip.add(tube);
+  const spark = mesh(new THREE.SphereGeometry(0.07, 12, 8), basic(CW, 1)); chip.add(spark);
+  return {curve, tube, spark};
+});
+
+/* ================= bloch ================= */
+const bloch = new THREE.Group(); scene.add(bloch);
+const inkLine = new THREE.LineBasicMaterial({color:0x8794a3, transparent:true, opacity:.75});
+bloch.add(new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), new THREE.MeshStandardMaterial({color:col(0xc9d6ea), metalness:0, roughness:.35, transparent:true, opacity:.22, depthWrite:false})));
+function circle(axis){
+  const pts = [];
+  for (let i = 0; i <= 96; i++) { const a = i/96*Math.PI*2, c = Math.cos(a), s = Math.sin(a);
+    pts.push(axis === 'y' ? new THREE.Vector3(c, 0, s) : axis === 'x' ? new THREE.Vector3(0, c, s) : new THREE.Vector3(c, s, 0)); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), inkLine);
+}
+bloch.add(circle('y'), circle('x'), circle('z'));
+[[1.3,0,0],[0,1.3,0],[0,0,1.3]].forEach(v => bloch.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-v[0],-v[1],-v[2]), new THREE.Vector3(...v)]), inkLine)));
+const arrow = new THREE.Group();
+const arrowMat = new THREE.MeshStandardMaterial({color:col(0x2549b8), metalness:.3, roughness:.35, emissive:col(0x1b3aa0), emissiveIntensity:.35});
+arrow.add(cyl(0.03, 0.86, arrowMat, 0, 0.43, 0, 16), mesh(new THREE.ConeGeometry(0.08, 0.16, 24), arrowMat, 0, 0.92, 0));
+bloch.add(arrow);
+const tip = mesh(new THREE.SphereGeometry(0.045, 16, 12), arrowMat); bloch.add(tip);
+const TRAILMAX = 200, trailPos = new Float32Array(TRAILMAX*3);
+const trailGeo = new THREE.BufferGeometry(); trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3)); trailGeo.setDrawRange(0, 0);
+bloch.add(new THREE.Line(trailGeo, new THREE.LineBasicMaterial({color:0xe08a1e})));
+const projGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const projLine = new THREE.Line(projGeo, new THREE.LineDashedMaterial({color:0x8794a3, dashSize:.05, gapSize:.04}));
+bloch.add(projLine);
+const axisMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 2.8, 10), new THREE.MeshBasicMaterial({color:col(0xffb347), transparent:true, opacity:0, toneMapped:false, depthWrite:false}));
+bloch.add(axisMesh);
+const flash = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.1, 40), new THREE.MeshBasicMaterial({color:col(0xffb347), transparent:true, opacity:0, side:THREE.DoubleSide, toneMapped:false, depthWrite:false}));
+flash.rotation.x = -Math.PI/2; bloch.add(flash);
+const GLYPH = {H:['H','Hadamard gate'], S:['S','Quarter turn about z'], T:['T','Eighth turn about z'], M:['M','Measurement'], P:['|+⟩','Prepare the same state again']};
+const firstBloch = SCENES.find(s => s.g === 'bloch');
+const toThree = v => new THREE.Vector3(v[1], v[2], v[0]);  // physics z up, x toward viewer
+
+// opaque solid parts cast and receive soft shadows
+[machine, chip].forEach(g => g.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } }));
+
+/* bloch state as a pure function of scene time, so scrolling back works */
+function rot(v, k, th){
+  const c = Math.cos(th), s = Math.sin(th), d = k[0]*v[0] + k[1]*v[1] + k[2]*v[2];
+  const x = [k[1]*v[2] - k[2]*v[1], k[2]*v[0] - k[0]*v[2], k[0]*v[1] - k[1]*v[0]];
+  return [0,1,2].map(i => v[i]*c + x[i]*s + k[i]*d*(1 - c));
+}
+function towards(v, tg, e){
+  const cr = [v[1]*tg[2] - v[2]*tg[1], v[2]*tg[0] - v[0]*tg[2], v[0]*tg[1] - v[1]*tg[0]], n = Math.hypot(...cr);
+  if (n < 1e-6) return e >= 1 ? tg.slice() : v;
+  const ang = Math.acos(Math.max(-1, Math.min(1, v[0]*tg[0] + v[1]*tg[1] + v[2]*tg[2])));
+  return rot(v, cr.map(q => q/n), ang*e);
+}
+const easeIO = k => k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3)/2;
+// shots scene: prepare |+>, one slow measurement, then rapid repeated shots
+const shotScene = SCENES.find(s => s.shots);
+shotScene.ops = [{at:0.4, kind:'goto', tg:[1,0,0], dur:1.0, name:'P'}, {at:2.4, kind:'goto', tg:[0,0,hash(1) < .5 ? 1 : -1], dur:0.7, name:'M', flash:true}];
+shotScene.shotList = [];
+for (let c = 0, t = 4.6; t < shotScene.dur - 1.2; c++, t += 0.55) {
+  const r = hash(c + 7) < .5 ? 0 : 1;
+  shotScene.ops.push({at:t, kind:'goto', tg:[1,0,0], dur:0.14}, {at:t + 0.2, kind:'goto', tg:[0,0,r ? -1 : 1], dur:0.2, flash:true});
+  shotScene.shotList.push({t:t + 0.4, r});
+}
+function blochAt(s, t){
+  let v = s.v0.slice();
+  for (const op of s.ops) {
+    if (t < op.at) break;
+    const e = easeIO(Math.min(1, (t - op.at)/op.dur));
+    v = op.kind === 'rot' ? rot(v, op.axis, op.ang*e) : towards(v, op.tg, e);
+  }
+  return v;
+}
+{ let v = [0,0,1]; SCENES.forEach(s => { if (s.g === 'bloch') { s.v0 = v; v = blochAt(s, s.dur); } }); }
+
+/* ================= labels ================= */
+const labelsEl = $('#labels'); const labels = [];
+function addLabel(html, pos, group, cls, id){
+  const el = document.createElement('div'); el.className = 'lbl ' + (cls || '');
+  el.innerHTML = `<span>${html}</span>`; el.hidden = true; labelsEl.appendChild(el);
+  labels.push({el, pos, group, id});
+}
+const camRight = new THREE.Vector3();
+STAGES.forEach(s => addLabel(`<b>${s.label}</b><span>${s.name}</span>`, () => {
+  camRight.setFromMatrixColumn(camera.matrixWorld, 0); camRight.y = 0; camRight.normalize();
+  return new THREE.Vector3(camRight.x*(s.r+0.1), s.y + s.group.position.y, camRight.z*(s.r+0.1));
+}, 'machine', 'lead', s.id));
+qubits.forEach(q => addLabel(`<b>Q${q.i}</b>`, new THREE.Vector3(q.qx + 0.72, 0.05, q.qz + (q.i < 4 ? 0.62 : -0.62)), 'chip', 'q center'));
+[['|0⟩',[0,0,1.28]],['|1⟩',[0,0,-1.3]],['|+⟩',[1.32,0,0]],['|−⟩',[-1.32,0,0]],['|+i⟩',[0,1.34,0]],['|−i⟩',[0,-1.34,0]]]
+  .forEach(([t,v]) => addLabel(`<b>${t}</b>`, toThree(v), 'bloch', 'ket center'));
+const tmp = new THREE.Vector3();
+function updateLabels(sc, lt){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  const vis = sc.assemble ? clamp01((lt - 5.8)/0.8) : Math.min(1, lt/0.8);
+  labels.forEach(L => {
+    let show = L.group === sc.g;
+    if (show && L.id) show = sc.labels === 'all' || (sc.labels || []).includes(L.id);
+    if (show) {
+      tmp.copy(typeof L.pos === 'function' ? L.pos() : L.pos).project(camera);
+      show = tmp.z < 1 && Math.abs(tmp.x) < 1.1 && Math.abs(tmp.y) < 1.1;
+    }
+    if (L.el.hidden === show) L.el.hidden = !show;
+    if (show) { L.el.style.transform = `translate(${((tmp.x*.5+.5)*w).toFixed(1)}px,${((-tmp.y*.5+.5)*h).toFixed(1)}px)`; L.el.style.opacity = vis; }
+  });
+}
+
+/* ================= camera ================= */
+function fitDist(h){
+  const vf = camera.fov*Math.PI/180, hf = 2*Math.atan(Math.tan(vf/2)*camera.aspect), w = h*16/9;
+  return Math.max(h/2/Math.tan(vf/2), w/2/Math.tan(hf/2));
+}
+function camOwn(s, lt){
+  const k = lt/s.dur, c = s.cam;
+  return {tg:c.tg, yaw:c.yaw + (s.drift || 0)*k, pitch:c.pitch, h:c.h*(1 + ((s.zoom || 1) - 1)*easeIO(k))};
+}
+function camAt(i, lt){
+  const s = SCENES[i], own = camOwn(s, lt);
+  if (s.cut || i === 0 || reduce) return own;
+  const prev = camAt(i - 1, SCENES[i-1].dur), move = Math.min(2.6, s.dur*0.4);
+  const e = easeIO(Math.min(1, lt/move));
+  return {tg:[0,1,2].map(j => prev.tg[j] + (own.tg[j] - prev.tg[j])*e), yaw:prev.yaw + (own.yaw - prev.yaw)*e,
+          pitch:prev.pitch + (own.pitch - prev.pitch)*e, h:prev.h + (own.h - prev.h)*e};
+}
+function placeCamera(c){
+  const d = fitDist(c.h), y = c.yaw*Math.PI/180, p = c.pitch*Math.PI/180;
+  const tg = new THREE.Vector3(...c.tg);
+  camera.position.set(tg.x + d*Math.cos(p)*Math.sin(y), tg.y + d*Math.sin(p), tg.z + d*Math.cos(p)*Math.cos(y));
+  camera.lookAt(tg);
+  camera.updateMatrixWorld();
+}
+
+/* ================= per-group animation ================= */
+const hlColor = col(0xffb347), black = new THREE.Color(0);
+function paintMachine(sc, lt, T){
+  // spotlight: parts being explained keep full reflections and a warm glow, the rest dim back
+  const on = sc.sweep ? (lt < 8.4 ? [STAGES[Math.min(5, Math.floor(lt/1.4))].id] : []) : (sc.hl || []);
+  const any = on.length > 0, fadeIn = sc.sweep ? 1 : Math.min(1, lt/0.9);
+  for (const id in parts) {
+    const hit = on.includes(id);
+    parts[id].meshes.forEach(m => {
+      if (m.userData.glow) return;
+      m.material.envMapIntensity = !any || hit ? 1 : 1 - 0.6*fadeIn;
+      m.material.emissive.copy(hit ? hlColor : black);
+      m.material.emissiveIntensity = hit ? (0.09 + 0.06*Math.sin(T*2.6))*fadeIn : 0;
+    });
+  }
+}
+const tmpC = new THREE.Color();
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x-a)/(b-a))); return t*t*(3-2*t); };
+function setQ(q, c, op){
+  tmpC.copy(C0).lerp(C1, c).lerp(CW, 1.6*c*(1 - c));   // blends pass through light, not purple
+  q.halo.material.color.copy(tmpC); q.disc.material.color.copy(tmpC);
+  q.halo.material.opacity = op; q.disc.material.opacity = op*0.35;
+}
+let shownBits = '';
+function animateChip(step, t){
+  Object.values(couplers).forEach(g => g.material.opacity = 0);
+  qubits.forEach(q => {
+    q.pulse.material.opacity = 0; q.resGlow.material.opacity = 0; q.ripple.material.opacity = 0;
+    q.trail.forEach(m => m.material.opacity = 0);
+    q.g.scale.setScalar(1); q.halo.scale.setScalar(1 + 0.035*Math.sin(t*3 + q.i));
+  });
+  arcs.forEach(r => { r.tube.material.opacity = 0; r.spark.visible = false; });
+  feeds.forEach(f => { f.glow.material.opacity = 0; f.dots.forEach(d => d.visible = false); });
+  const rippleAt = (q, rp, c) => { if (rp <= 0 || rp >= 1) return; q.ripple.scale.setScalar(1 + rp*0.9); q.ripple.material.opacity = 0.85*(1 - rp); q.ripple.material.color.copy(c ? C1 : C0); };
+  $('#hud-bits').hidden = step !== 4;
+  if (step === 0) {
+    // the chip powers up: qubits pop in one by one, Q0 first
+    qubits.forEach(q => {
+      const k = clamp01((t - 0.3 - q.i*0.14)/0.55);
+      q.g.scale.setScalar(Math.max(0.001, backOut(k)));
+      setQ(q, 0, (q.i === 0 ? 0.75 + 0.2*Math.sin(t*2.4) : 0.12)*k);
+    });
+  } else if (step === 1) {
+    const P = 3.2;
+    qubits.forEach(q => {
+      const tt = t - 0.6 - q.i*0.32; if (tt < 0) { setQ(q, 0, .75); return; }
+      const cyc = Math.floor(tt/P), p = (tt % P)/P, prev = cyc % 2, next = 1 - prev;
+      if (p < 0.42) {
+        q.pulse.position.lerpVectors(q.from, q.to, p/0.42); q.pulse.material.opacity = 1;
+        q.trail.forEach((m, j) => { const pp = p/0.42 - (j + 1)*0.07; if (pp > 0) { m.position.lerpVectors(q.from, q.to, pp); m.material.opacity = 0.5/(j + 1); m.scale.setScalar(0.75 - j*0.2); } });
+      }
+      rippleAt(q, (p - 0.42)/0.22, next);
+      setQ(q, prev + (next - prev)*smooth(0.42, 0.55, p), .8);
+    });
+  } else if (step === 2) {
+    qubits.forEach(q => setQ(q, 0.5 + 0.5*Math.sin(t*2.2 + q.i*0.8)*Math.min(1, t/1.2), .8));
+  } else if (step === 3) {
+    PAIRS.forEach(([a,b], k) => {
+      const on = smooth(0.5, 2.0, t), c = 0.5 + 0.5*Math.sin(t*2 + k*1.4);
+      setQ(qubits[a], c, .85); setQ(qubits[b], 0.5 + (c - 0.5)*on + 0.5*Math.sin(t*2.2 + k*3)*(1 - on)*0.9, .85);
+      couplers[a+'-'+b].material.opacity = on*(0.55 + 0.35*Math.sin(t*5));
+      const arc = arcs[k]; growTube(arc.tube, on); arc.tube.material.opacity = 0.75*on;
+      if (on > 0.98) { arc.spark.visible = true; arc.spark.position.copy(arc.curve.getPoint(0.5 - 0.5*Math.cos(t*2.2 + k))); }
+    });
+  } else if (step === 4) {
+    const P = 3.6, cyc = Math.floor(t/P), p = (t % P)/P;
+    const cur = []; PAIRS.forEach((_, k) => { const v = hash(cyc*4 + k + 31) < .5 ? 0 : 1; cur.push(v, v); });
+    const settle = smooth(0.38, 0.5, p);
+    PAIRS.forEach(([a,b], k) => {
+      couplers[a+'-'+b].material.opacity = 0.45*(1 - settle);
+      growTube(arcs[k].tube, 1); arcs[k].tube.material.opacity = 0.6*(1 - settle);
+      const wob = 0.5 + 0.5*Math.sin(t*3 + k*1.4);
+      [a,b].forEach(i => { setQ(qubits[i], wob + (cur[i] - wob)*settle, .85); rippleAt(qubits[i], (p - 0.44)/0.25, cur[i]); });
+    });
+    const probe = Math.sin(Math.PI*smooth(0.2, 0.62, p));
+    qubits.forEach(q => q.resGlow.material.opacity = 0.55*probe);
+    feeds.forEach(f => {
+      f.glow.material.opacity = 0.18*probe;
+      f.dots.forEach((d, j) => { d.visible = probe > 0.02; d.position.set(((t*1.6 + j*2.6) % 7.8) - 3.9, 0.07, f.z); d.material.opacity = probe; });
+    });
+    // show the result once the qubits settle; keep the previous shot until then
+    const showCyc = p >= 0.5 ? cyc : cyc - 1;
+    let html = '--------';
+    if (showCyc >= 0) {
+      const b = []; PAIRS.forEach((_, k) => { const v = hash(showCyc*4 + k + 31) < .5 ? 0 : 1; b.push(v, v); });
+      html = b.map((v, i) => `<span class="b${v}">${v}</span>` + (i%2 && i < 7 ? '<span class="gap"></span>' : '')).join('');
+    }
+    if (html !== shownBits) { shownBits = html; $('#bits').innerHTML = html; }
+  }
+}
+const up = new THREE.Vector3(0,1,0);
+let shownTally = '';
+let shownGlyph = '';
+function animateBloch(sc, lt){
+  // first scene: sphere grows in, then the arrow extends from the centre
+  const intro = sc === firstBloch;
+  const kS = intro ? easeIO(clamp01(lt/1.2)) : 1, kA = intro ? easeIO(clamp01((lt - 1.0)/0.9)) : 1;
+  bloch.scale.setScalar(0.6 + 0.4*kS);
+  arrow.scale.set(1, Math.max(0.001, kA), 1); tip.visible = kA > 0.98;
+  // current gate: glowing rotation axis plus a big glyph naming it
+  let act = null;
+  for (const op of sc.ops) if (op.name && lt >= op.at - 0.4 && lt <= op.at + op.dur + 0.9) act = op;
+  if (act && act.kind === 'rot') {
+    axisMesh.visible = true; axisMesh.material.opacity = 0.9*Math.sin(Math.PI*clamp01((lt - act.at + 0.3)/(act.dur + 0.6)));
+    axisMesh.quaternion.setFromUnitVectors(up, toThree(act.axis).normalize());
+  } else axisMesh.visible = false;
+  const gl = $('#glyph');
+  if (act) {
+    const key = act.name + act.at;
+    if (key !== shownGlyph) { shownGlyph = key; $('#glyph-b').textContent = GLYPH[act.name][0]; $('#glyph-s').textContent = GLYPH[act.name][1]; }
+    const a = lt - act.at + 0.4, end = act.dur + 1.3;
+    gl.hidden = false; gl.style.opacity = (smooth(0, 0.25, a)*(1 - smooth(end - 0.35, end, a))).toFixed(3);
+    gl.style.transform = `scale(${backOut(clamp01(a/0.4)).toFixed(3)})`;
+  } else { gl.hidden = true; shownGlyph = ''; }
+  // a flash ring where the arrow lands after each measurement
+  let fl = null;
+  for (const op of sc.ops) if (op.flash && lt >= op.at + op.dur && lt < op.at + op.dur + 0.5) fl = op;
+  if (fl) { const k = (lt - fl.at - fl.dur)/0.5; flash.visible = true; flash.position.set(0, fl.tg[2], 0); flash.scale.setScalar(1 + k*5); flash.material.opacity = 0.9*(1 - k); }
+  else flash.visible = false;
+  const v = toThree(blochAt(sc, lt));
+  arrow.quaternion.setFromUnitVectors(up, v.clone().normalize());
+  tip.position.copy(v);
+  // trail: the last 2.5 s of the arrow's path
+  let n = 0;
+  for (let t = Math.max(0, lt - 2.5); t <= lt && n < TRAILMAX; t += 0.025) { const p = toThree(blochAt(sc, t)); trailPos[n*3] = p.x; trailPos[n*3+1] = p.y; trailPos[n*3+2] = p.z; n++; }
+  trailGeo.attributes.position.needsUpdate = true; trailGeo.setDrawRange(0, n);
+  const pa = projGeo.attributes.position; pa.setXYZ(0, v.x, v.y, v.z); pa.setXYZ(1, v.x, 0, v.z); pa.needsUpdate = true;
+  projLine.computeLineDistances();
+  const hud = $('#hud-tally');
+  if (sc.shots) {
+    const done = sc.shotList.filter(s => s.t <= lt);
+    hud.hidden = done.length === 0;
+    const n1 = done.filter(s => s.r).length, n0 = done.length - n1, key = n0 + '/' + n1;
+    if (key !== shownTally) {
+      shownTally = key; const m = Math.max(1, done.length);
+      $('#tally-n').textContent = `Shots of the same circuit: ${done.length}`;
+      $('#t0').textContent = n0; $('#t1').textContent = n1;
+      $('#t0bar').style.width = (n0/m*100) + '%'; $('#t1bar').style.width = (n1/m*100) + '%';
+    }
+  } else hud.hidden = true;
+}
+
+/* ================= render ================= */
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+// film time follows the scroll position: 0 when the film's top reaches the viewport top, TOTAL at its end.
+// Play advances the clock by itself and moves the scroll with it, so the page never has to be scrolled.
+let T = 0, playing = false, playT = 0, lastNow = 0;
+const playBtn = $('#play'), topBtn = $('#top');
+const filmTop = () => window.scrollY + film.getBoundingClientRect().top;
+function filmTime(){
+  return clamp01(-film.getBoundingClientRect().top / span()) * TOTAL;
+}
+function setPlaying(on){
+  playing = on;
+  playBtn.textContent = on ? 'Pause' : 'Play';
+}
+function play(){
+  playT = filmTime();
+  if (playT >= TOTAL - 0.05) playT = 0;
+  setPlaying(true);
+}
+function pause(){ if (playing) setPlaying(false); }
+function toTop(){
+  pause(); playT = 0;
+  window.scrollTo({top: filmTop(), behavior: reduce ? 'auto' : 'smooth'});
+}
+playBtn.onclick = () => playing ? pause() : play();
+topBtn.onclick = toTop;
+// any real scroll gesture or key takes control back from Play; clicks on the controls do not
+const userMoved = e => { if (!e.target.closest || !e.target.closest('.controls')) pause(); };
+['wheel','touchstart','pointerdown','keydown'].forEach(ev => window.addEventListener(ev, userMoved, {passive:true}));
+function tick(now){
+  const dt = Math.min(0.1, (now - (lastNow || now)) / 1000); lastNow = now;
+  if (playing) {
+    playT += dt;
+    if (playT >= TOTAL) { playT = TOTAL; setPlaying(false); }
+    window.scrollTo({top: filmTop() + clamp01(playT / TOTAL) * span(), behavior: 'auto'});
+    T = playT;
+  } else T = filmTime();
+  draw();
+  requestAnimationFrame(tick);
+}
+function draw(){
+  const tt = Math.min(T, TOTAL - 0.001), i = sceneAt(tt), sc = SCENES[i], lt = tt - sc.start;
+  if (i !== lastScene) { lastScene = i; setStep(i); }
+  if (sc.ch !== lastChapter) {
+    lastChapter = sc.ch;
+    partBtns.forEach((b, ci) => { if (ci === sc.ch) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
+  }
+
+  machine.visible = sc.g === 'machine'; chip.visible = sc.g === 'chip'; bloch.visible = sc.g === 'bloch';
+  placeCamera(camAt(i, lt));
+  if (sc.g === 'machine') { paintMachine(sc, lt, T); machineFX(sc, lt, T); }
+  else if (sc.g === 'chip') animateChip(sc.step, lt);
+  else animateBloch(sc, lt);
+  if (sc.g !== 'chip') $('#hud-bits').hidden = true;
+  if (sc.g !== 'bloch') { $('#hud-tally').hidden = true; $('#glyph').hidden = true; }
+
+  // fade through the paper colour at each cut
+  let fo = 0;
+  SCENES.forEach((s, j) => { if (j && s.cut) fo = Math.max(fo, 1 - Math.abs(tt - s.start)/0.55); });
+  fade.style.opacity = Math.max(0, fo).toFixed(3);
+
+  renderer.render(scene, camera);
+  updateLabels(sc, lt);
+}
+const fade = $('#fade');
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
